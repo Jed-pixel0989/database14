@@ -9,18 +9,21 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/database.php';
 
-// Define base URL dynamically
-$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-$protocol = $is_https ? "https://" : "http://";
+// Build the application URL from the current request. This works from the
+// domain root, an InfinityFree htdocs subdirectory, or a custom domain.
+$is_https = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443)
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+$protocol = $is_https ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$script_name = $_SERVER['SCRIPT_NAME'] ?? '/database14/index.php';
-$script_dir = str_replace('\\', '/', dirname($script_name));
-// Extract base project folder e.g. /database14/
-$base_path = '/database14/';
-if (strpos($script_dir, '/database14') !== false) {
-    $base_path = substr($script_dir, 0, strpos($script_dir, '/database14') + 12);
+$script_name = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
+$base_path = rtrim(str_replace('\\', '/', dirname($script_name)), '/');
+if ($base_path === '.' || $base_path === '/') {
+    $base_path = '';
 }
-define('BASE_URL', rtrim($protocol . $host . $base_path, '/') . '/');
+if (!defined('BASE_URL')) {
+    define('BASE_URL', rtrim($protocol . $host . $base_path, '/') . '/');
+}
 
 function url($path = '') {
     return BASE_URL . ltrim($path, '/');

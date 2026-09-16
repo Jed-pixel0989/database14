@@ -3,9 +3,6 @@
 -- Database Schema & Comprehensive Demo Seed Data
 -- =======================================================
 
-CREATE DATABASE IF NOT EXISTS `enrollment_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `enrollment_db`;
-
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `activity_logs`;
@@ -282,7 +279,8 @@ CREATE TABLE `student_enrollments` (
     `schedule_id` INT NOT NULL,
     `enrolled_by_user_id` INT DEFAULT NULL,
     `status` ENUM('Enrolled', 'Dropped', 'Withdrawn') DEFAULT 'Enrolled',
-    `enrolled_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `enrolled_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `unique_clearance_schedule` (`clearance_id`, `schedule_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------

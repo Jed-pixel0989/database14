@@ -3,11 +3,7 @@
 // One-Click Database Setup & System Installer
 // =======================================================
 
-define('SETUP_DB_HOST', 'localhost');
-define('SETUP_DB_USER', 'root');
-define('SETUP_DB_PASS', '');
-define('SETUP_DB_NAME', 'enrollment_db');
-define('SETUP_DB_PORT', 3306);
+require_once __DIR__ . '/config/database.php';
 
 $messages = [];
 $success = false;
@@ -15,18 +11,17 @@ $sql_file = __DIR__ . '/database/database.sql';
 
 if (isset($_POST['install']) || isset($_GET['auto']) || php_sapi_name() === 'cli') {
     try {
-        // Connect to MySQL server without database
-        $pdo = new PDO("mysql:host=" . SETUP_DB_HOST . ";port=" . SETUP_DB_PORT . ";charset=utf8mb4", SETUP_DB_USER, SETUP_DB_PASS, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        // InfinityFree does not grant CREATE/DROP DATABASE privileges. The
+        // database must first be created in the hosting control panel.
+        $pdo = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false,
         ]);
         
         $messages[] = ['type' => 'success', 'text' => 'Connected to MySQL server successfully.'];
 
-        // 1. Clean drop and recreate database to clear any stale data
+        // 1. Clear existing tables without requiring database-level privileges
         $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-        $pdo->exec("DROP DATABASE IF EXISTS `" . SETUP_DB_NAME . "`");
-        $pdo->exec("CREATE DATABASE `" . SETUP_DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        $pdo->exec("USE `" . SETUP_DB_NAME . "`");
 
         if (!file_exists($sql_file)) {
             throw new Exception("SQL file not found at: " . $sql_file);
@@ -34,19 +29,20 @@ if (isset($_POST['install']) || isset($_GET['auto']) || php_sapi_name() === 'cli
 
         $sql_content = file_get_contents($sql_file);
 
-        // Strip single line comments
+        // Strip comments and database-selection statements. The SQL file is
+        // intentionally safe to import into an InfinityFree-created schema.
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $sql_content));
         $clean_sql = '';
         foreach ($lines as $line) {
             $trimmed = trim($line);
-            if (strpos($trimmed, '--') === 0) {
+            if (strpos($trimmed, '--') === 0 || preg_match('/^(CREATE DATABASE|USE)\b/i', $trimmed)) {
                 continue;
             }
             $clean_sql .= $line . "\n";
         }
 
-        // Split queries by semicolon followed by newline/end of block
-        $queries = preg_split('/;\s*[\r\n]+/m', $clean_sql);
+        // Each schema statement ends with a semicolon and a line break.
+        $queries = preg_split('/;\s*(?:[\r\n]+|$)/m', $clean_sql);
 
         foreach ($queries as $query) {
             $query = trim($query);
@@ -57,12 +53,12 @@ if (isset($_POST['install']) || isset($_GET['auto']) || php_sapi_name() === 'cli
 
         $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 
-        $messages[] = ['type' => 'success', 'text' => 'Database `enrollment_db` created and tables imported with seed data successfully!'];
+        $messages[] = ['type' => 'success', 'text' => 'Database `' . DB_NAME . '` imported with tables and seed data successfully!'];
         $messages[] = ['type' => 'success', 'text' => '6 Role Accounts, 19 Subjects, 16 Class Schedules, and 5 Sample Students generated!'];
         $success = true;
 
     } catch (Exception $e) {
-        $messages[] = ['type' => 'error', 'text' => 'Installation Failed: ' . $e->getMessage()];
+        $messages[] = ['type' => 'error', 'text' => 'Installation Failed: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8')];
     }
 }
 ?>
@@ -155,13 +151,13 @@ if (isset($_POST['install']) || isset($_GET['auto']) || php_sapi_name() === 'cli
             <div class="bg-slate-900/60 border border-slate-700/60 rounded-xl p-6 mb-6">
                 <h2 class="text-base font-semibold text-white mb-2">Target Database Configuration:</h2>
                 <ul class="space-y-1 text-sm text-slate-300 font-mono">
-                    <li><span class="text-slate-500">Host:</span> localhost:3306</li>
-                    <li><span class="text-slate-500">User:</span> root</li>
-                    <li><span class="text-slate-500">Password:</span> (blank default)</li>
-                    <li><span class="text-slate-500">Database Name:</span> enrollment_db</li>
+                    <li><span class="text-slate-500">Host:</span> <?= htmlspecialchars(DB_HOST) ?>:<?= (int) DB_PORT ?></li>
+                    <li><span class="text-slate-500">User:</span> <?= htmlspecialchars(DB_USER) ?></li>
+                    <li><span class="text-slate-500">Password:</span> configured privately</li>
+                    <li><span class="text-slate-500">Database Name:</span> <?= htmlspecialchars(DB_NAME) ?></li>
                 </ul>
                 <p class="text-xs text-slate-400 mt-4">
-                    Clicking install will automatically create the database, all relations, programs, curriculum, class schedules, and accounts for all 5 signatory clearance stages.
+                    Clicking install imports the tables, programs, curriculum, class schedules, and accounts into the database configured above. The database itself must already exist in your hosting control panel.
                 </p>
             </div>
 
